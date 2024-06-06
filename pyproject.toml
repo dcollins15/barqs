@@ -1,0 +1,9 @@
+[project]
+name = "barqs"
+version = "0.1.0"
+description = "The barcode quantifier with bite!"
+readme = "README.md"
+license = {text = "MIT"}
+authors = [{name = "David Collins", email = "dcollins@nygenome.org"}]
+requires-python = ">=3.9"
+dependencies = []
