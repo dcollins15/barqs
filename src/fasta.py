@@ -19,11 +19,11 @@ def load(fp: FileOrPathish) -> FASTAStream:
     ...
 
     Args:
-        fp (FileOrPathish): 
+        fp (FileOrPathish):
             A path or file-like object.
 
     Returns:
-        FASTAStream: 
+        FASTAStream:
             An iterator of `FASTQRecord`s.
     """
 
@@ -32,8 +32,8 @@ def dump(data: FASTAish, fp: FileOrPathish):
     """Serialize `data` as a FASTA formatted stream to `fp`.
 
     Args:
-        data (FASTQish): 
+        data (FASTQish):
             An iterable of `FASTARecord`s.
-        fp: 
+        fp:
             A path or file-like object.
     """
