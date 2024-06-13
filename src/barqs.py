@@ -1,4 +1,6 @@
 import re
+from collections import defaultdict
+
 from cutadapt.adapters import AnywhereAdapter
 
 import fasta
@@ -76,3 +78,37 @@ def filter_duplicates(reads: fastq.FASTQish) -> fasta.FASTAStream:
             yield (header, seq)
 
             observed.add(key)
+
+
+def quantify(
+    seqs: fasta.FASTAish, 
+    features: fasta.FASTAish
+) -> dict[str, dict[str, int]]:
+    id_pattern = fr" ([{fastq.IUPAC_DNA}]+):([{fastq.IUPAC_DNA}]+)( |$)"
+
+    umis_by_barcode_feature = defaultdict(lambda: defaultdict(set))
+    for header, _, _ in seqs:
+        id_match = re.search(id_pattern, header)
+
+        if id_match:
+            barcode = id_match.group(1)
+            umi = id_match.group(2)
+        else:
+            raise ValueError()
+        
+        feature_matches = [
+            feature_name
+            for feature_name, _ in features
+            if feature_name in header
+        ]
+
+        assert len(feature_matches) == 1
+        feature = feature_matches[0]
+
+        umis_by_barcode_feature[barcode][feature].add(umi)
+
+
+    return {
+        barcode: {feature: len(umis) for feature, umis in features.items()}
+        for barcode, features in umis_by_barcode_feature.items()
+    }
