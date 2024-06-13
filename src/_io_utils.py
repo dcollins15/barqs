@@ -85,3 +85,6 @@ def maybe_open(
         fp, mode=mode, encoding=encoding, compression=compression, **kwargs
     ) as file:
         yield file
+
+
+class EOFError(Exception): ...
