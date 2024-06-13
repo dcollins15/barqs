@@ -108,3 +108,12 @@ def dump(data: FASTQish, fp: FileOrPathish):
         fp: 
             A path or file-like object.
     """
+        
+    with maybe_open(fp, "wt") as fastq_file:
+        for header, seq, quality_scores in data:
+            fastq_file.write(
+                f"@{header}\n"
+                + f"{seq}\n"                
+                + "+\n"
+                + f"{quality_scores}\n"
+            )
