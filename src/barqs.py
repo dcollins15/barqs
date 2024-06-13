@@ -39,9 +39,9 @@ def trim(record: fastq.FASTQRecord, features: fasta.FASTAish) -> fastq.FASTQReco
         for feature_name, feature in features
     }
 
-    if any(feature_matches):
+    if any(feature_matches.values()):
         match_name, top_match = max(
-            feature_matches.items(), key=lambda x: x[1].score if x else 0
+            feature_matches.items(), key=lambda x: x[1].score if x[1] else 0
         )
 
         header = f"{header} {match_name}"
@@ -61,19 +61,19 @@ def trim(record: fastq.FASTQRecord, features: fasta.FASTAish) -> fastq.FASTQReco
 
 
 def filter_duplicates(reads: fastq.FASTQish) -> fasta.FASTAStream:
-    pattern = fr" ([{fastq.IUPAC_DNA}]+):([{fastq.IUPAC_DNA}]+)( |$)"
+    pattern = rf" ([{fastq.IUPAC_DNA}]+):([{fastq.IUPAC_DNA}]+)( |$)"
 
     observed = set()
     for header, seq, _ in reads:
-        pattern_match = re.serach(pattern, header)
+        pattern_match = re.search(pattern, header)
 
         if pattern_match:
             barcode = pattern_match.group(1)
             umi = pattern_match.group(2)
         else:
             raise ValueError()
-        
-        key = tuple(barcode, umi)
+
+        key = (barcode, umi)
         if key not in observed:
             yield (header, seq)
 
@@ -81,13 +81,12 @@ def filter_duplicates(reads: fastq.FASTQish) -> fasta.FASTAStream:
 
 
 def quantify(
-    seqs: fasta.FASTAish, 
-    features: fasta.FASTAish
+    seqs: fasta.FASTAish, features: fasta.FASTAish
 ) -> dict[str, dict[str, int]]:
-    id_pattern = fr" ([{fastq.IUPAC_DNA}]+):([{fastq.IUPAC_DNA}]+)( |$)"
+    id_pattern = rf" ([{fastq.IUPAC_DNA}]+):([{fastq.IUPAC_DNA}]+)( |$)"
 
     umis_by_barcode_feature = defaultdict(lambda: defaultdict(set))
-    for header, _, _ in seqs:
+    for header, _ in seqs:
         id_match = re.search(id_pattern, header)
 
         if id_match:
@@ -95,18 +94,14 @@ def quantify(
             umi = id_match.group(2)
         else:
             raise ValueError()
-        
+
         feature_matches = [
-            feature_name
-            for feature_name, _ in features
-            if feature_name in header
+            feature_name for feature_name, _ in features if feature_name in header
         ]
 
-        assert len(feature_matches) == 1
-        feature = feature_matches[0]
-
-        umis_by_barcode_feature[barcode][feature].add(umi)
-
+        if feature_matches:
+            assert len(feature_matches) == 1
+            umis_by_barcode_feature[barcode][feature_matches[0]].add(umi)
 
     return {
         barcode: {feature: len(umis) for feature, umis in features.items()}
