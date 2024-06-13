@@ -1,3 +1,4 @@
+import re
 from cutadapt.adapters import AnywhereAdapter
 
 import fasta
@@ -55,3 +56,23 @@ def trim(record: fastq.FASTQRecord, features: fasta.FASTAish) -> fastq.FASTQReco
         seq,
         quality_scores,
     )
+
+
+def filter_duplicates(reads: fastq.FASTQish) -> fasta.FASTAStream:
+    pattern = fr" ([{fastq.IUPAC_DNA}]+):([{fastq.IUPAC_DNA}]+)( |$)"
+
+    observed = set()
+    for header, seq, _ in reads:
+        pattern_match = re.serach(pattern, header)
+
+        if pattern_match:
+            barcode = pattern_match.group(1)
+            umi = pattern_match.group(2)
+        else:
+            raise ValueError()
+        
+        key = tuple(barcode, umi)
+        if key not in observed:
+            yield (header, seq)
+
+            observed.add(key)
