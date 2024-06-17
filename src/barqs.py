@@ -28,19 +28,23 @@ def extract(
     )
 
 
-def trim(record: fastq.FASTQRecord, features: fasta.FASTAish) -> fastq.FASTQRecord:
+def trim(
+    record: fastq.FASTQRecord, 
+    features: fasta.FASTAish,
+    tolerance = 3,
+) -> fastq.FASTQRecord:
     header, seq, quality_scores = record
 
-    fuzzy_pattern = "{e<=3}"
+    fuzzy_pattern = f"{{e<={tolerance}}}"
     feature_matches = {
         feature_name: match
         for feature_name, feature_seq in features
-        if (match := regex.search(f"{feature_seq}{fuzzy_pattern}", seq, regex.BESTMATCH))
+        if (match := regex.search(f"{feature_seq}{fuzzy_pattern}", seq))
     }
 
     if any(feature_matches):
         match_name, top_match = min(
-            feature_matches.items(), key=lambda x: sum(x[1].fuzzy_counts) if x[1] else 0
+            feature_matches.items(), key=lambda x: sum(x[1].fuzzy_counts)
         )
 
         header = f"{header} {match_name}"
