@@ -1,7 +1,5 @@
-import re
+import regex
 from collections import defaultdict
-
-from cutadapt.adapters import AnywhereAdapter
 
 import fasta
 import fastq
@@ -31,27 +29,23 @@ def extract(
 
 
 def trim(record: fastq.FASTQRecord, features: fasta.FASTAish) -> fastq.FASTQRecord:
-
     header, seq, quality_scores = record
 
+    fuzzy_pattern = "{e<=3}"
     feature_matches = {
-        feature_name: AnywhereAdapter(feature).match_to(seq)
-        for feature_name, feature in features
+        feature_name: match
+        for feature_name, feature_seq in features
+        if (match := regex.search(f"{feature_seq}{fuzzy_pattern}", seq, regex.BESTMATCH))
     }
 
-    if any(feature_matches.values()):
-        match_name, top_match = max(
-            feature_matches.items(), key=lambda x: x[1].score if x[1] else 0
+    if any(feature_matches):
+        match_name, top_match = min(
+            feature_matches.items(), key=lambda x: sum(x[1].fuzzy_counts) if x[1] else 0
         )
 
         header = f"{header} {match_name}"
-
-        feature_start = top_match.rstart
-        feature_stop = top_match.rstop
-
-        seq = seq[feature_start:feature_stop]
-
-        quality_scores = quality_scores[feature_start:feature_stop]
+        seq = top_match.group()
+        quality_scores = quality_scores[top_match.start(): top_match.end()]
 
     return (
         header,
@@ -61,19 +55,11 @@ def trim(record: fastq.FASTQRecord, features: fasta.FASTAish) -> fastq.FASTQReco
 
 
 def filter_duplicates(reads: fastq.FASTQish) -> fasta.FASTAStream:
-    pattern = rf" ([{fastq.IUPAC_DNA}]+):([{fastq.IUPAC_DNA}]+)( |$)"
 
     observed = set()
     for header, seq, _ in reads:
-        pattern_match = re.search(pattern, header)
+        key = find_header_key(header)
 
-        if pattern_match:
-            barcode = pattern_match.group(1)
-            umi = pattern_match.group(2)
-        else:
-            raise ValueError()
-
-        key = (barcode, umi)
         if key not in observed:
             yield (header, seq)
 
@@ -83,17 +69,10 @@ def filter_duplicates(reads: fastq.FASTQish) -> fasta.FASTAStream:
 def quantify(
     seqs: fasta.FASTAish, features: fasta.FASTAish
 ) -> dict[str, dict[str, int]]:
-    id_pattern = rf" ([{fastq.IUPAC_DNA}]+):([{fastq.IUPAC_DNA}]+)( |$)"
-
+    
     umis_by_barcode_feature = defaultdict(lambda: defaultdict(set))
     for header, _ in seqs:
-        id_match = re.search(id_pattern, header)
-
-        if id_match:
-            barcode = id_match.group(1)
-            umi = id_match.group(2)
-        else:
-            raise ValueError()
+        barcode, umi = _get_key(header)
 
         feature_matches = [
             feature_name for feature_name, _ in features if feature_name in header
@@ -107,3 +86,22 @@ def quantify(
         barcode: {feature: len(umis) for feature, umis in features.items()}
         for barcode, features in umis_by_barcode_feature.items()
     }
+
+
+def find_header_key(header: str) -> str:
+    barcode, umi = _get_key(header)
+    return f"{barcode}:{umi}"
+
+
+def _get_key(header: str) -> tuple[str, str]:
+    pattern = rf" ([{fastq.IUPAC_DNA}]+):([{fastq.IUPAC_DNA}]+)( |$)"
+
+    pattern_match = regex.search(pattern, header)
+
+    if pattern_match:
+        barcode = pattern_match.group(1)
+        umi = pattern_match.group(2)
+    else:
+        raise ValueError
+
+    return (barcode, umi)
