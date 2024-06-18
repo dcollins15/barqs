@@ -120,7 +120,7 @@ def quantify(
 
 
 def get_barcodes(header: str) -> tuple[str, str]:
-    pattern = rf" ([{fastq.IUPAC_DNA}]+):([{fastq.IUPAC_DNA}]+)( |$)"
+    pattern = r" ([ATGC]+):([ATCG]+)( |$)"
 
     pattern_match = regex.search(pattern, header)
 
