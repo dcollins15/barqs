@@ -1,23 +1,28 @@
 import regex
 from collections import defaultdict
+from typing import Mapping, Optional
 
 import fasta
 import fastq
 
 
 def extract(
-    record: fastq.FASTQRecord,
-    barcode_length: tuple[int, int],
-    umi_length: tuple[int, int],
+    read1: fastq.FASTQRecord,
+    barcode_length: int,
+    umi_length: int,
+    read2: Optional[fastq.FASTQRecord] = None,
 ) -> fastq.FASTQRecord:
 
-    header, seq, quality_scores = record
+    header, seq, quality_scores = read1
 
     barcode = seq[:barcode_length]
     umi = seq[barcode_length : barcode_length + umi_length]
 
-    seq = seq[barcode_length + umi_length :]
-    quality_scores = quality_scores[barcode_length + umi_length :]
+    if read2:
+        header, seq, quality_scores = read2
+    else:
+        seq = seq[barcode_length + umi_length :]
+        quality_scores = quality_scores[barcode_length + umi_length :]
 
     header = f"{header} {barcode}:{umi}"
 
@@ -28,12 +33,13 @@ def extract(
     )
 
 
-def trim(
-    record: fastq.FASTQRecord, 
+def trim_by_regex(
+    read: fastq.FASTQRecord, 
     features: fasta.FASTAish,
     tolerance = 3,
 ) -> fastq.FASTQRecord:
-    header, seq, quality_scores = record
+    
+    header, seq, quality_scores = read
 
     fuzzy_pattern = f"{{e<={tolerance}}}"
     feature_matches = {
@@ -58,11 +64,33 @@ def trim(
     )
 
 
-def filter_duplicates(reads: fastq.FASTQish) -> fasta.FASTAStream:
+def trim_by_index(
+    read: fastq.FASTQRecord, 
+    features_lookup: Mapping[str, str],
+    region: tuple[str, str]
+) -> fastq.FASTQRecord:
 
+    header, seq, quality_scores = read
+
+    start, end = region
+    seq = seq[start: end]
+    quality_scores = quality_scores[start: end]
+
+    feature_name = features_lookup.get(seq)
+    if feature_name:
+        header = f"{header} {feature_name}"
+
+    return (
+        header,
+        seq,
+        quality_scores,
+    )
+
+
+def filter_duplicates(reads: fastq.FASTQish) -> fasta.FASTAStream:
     observed = set()
     for header, seq, _ in reads:
-        key = find_header_key(header)
+        key = get_barcodes(header)
 
         if key not in observed:
             yield (header, seq)
@@ -76,7 +104,7 @@ def quantify(
     
     umis_by_barcode_feature = defaultdict(lambda: defaultdict(set))
     for header, _ in seqs:
-        barcode, umi = _get_key(header)
+        barcode, umi = get_barcodes(header)
 
         feature_matches = [
             feature_name for feature_name, _ in features if feature_name in header
@@ -92,12 +120,7 @@ def quantify(
     }
 
 
-def find_header_key(header: str) -> str:
-    barcode, umi = _get_key(header)
-    return f"{barcode}:{umi}"
-
-
-def _get_key(header: str) -> tuple[str, str]:
+def get_barcodes(header: str) -> tuple[str, str]:
     pattern = rf" ([{fastq.IUPAC_DNA}]+):([{fastq.IUPAC_DNA}]+)( |$)"
 
     pattern_match = regex.search(pattern, header)
