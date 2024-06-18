@@ -9,9 +9,6 @@ FASTQLike = Iterable[FASTQRecord]
 FASTQish = Union[dict[str, tuple[str, str]], FASTQLike]
 
 
-IUPAC_DNA = "ATCGRYSWKMBDHVN"
-
-
 def load(fp: FileOrPathish) -> FASTQStream:
     """Deserialize `fp` to an iterator of key, sequence, quality score triples.
 
@@ -51,11 +48,6 @@ def load(fp: FileOrPathish) -> FASTQStream:
                 raise EOFError(f"Missing quality header: @{header}")
 
             seq = "".join(seq_list)
-            if not set(seq) <= set(IUPAC_DNA):
-                raise ValueError(
-                    f"FASTQ sequence must only contain IUPAC nucleotide "
-                    f"characters: {header}"
-                )
 
             quality_header = next_line[1:].rstrip()
             if quality_header and quality_header != header:
@@ -82,12 +74,6 @@ def load(fp: FileOrPathish) -> FASTQStream:
                 raise EOFError(
                     f"Lengths of sequence and quality scores differs "
                     f"({seq_length} != {quality_length}): @{header}"
-                )
-
-            if not quality_scores.isascii():
-                raise ValueError(
-                    f"FASTQ quality scores must only contain ASCII "
-                    f"characters: {header}"
                 )
 
             yield (header, seq, quality_scores)
