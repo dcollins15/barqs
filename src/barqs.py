@@ -24,12 +24,14 @@ def tag(
     read: fastq.FASTQRecord,
     barcode: str,
     umi: str,
+    trim = True,
 ) -> fastq.FASTQRecord:
 
     header, seq, quality_scores = read
-
-    seq = seq[len(barcode) + len(umi) :]
-    quality_scores = quality_scores[len(barcode) + len(umi) :]
+    
+    if trim:
+        seq = seq[len(barcode) + len(umi) :]
+        quality_scores = quality_scores[len(barcode) + len(umi) :]
 
     header = f"{header} {barcode}:{umi}"
 
@@ -116,6 +118,8 @@ def quantify(
 
         feature_matches = [
             feature_name 
+            # checking for the presence of the feature name isn't robust enough
+            # will create spurious matches if feature names are subsets of eachother
             for feature_name, _ in features if feature_name in header
         ]
 
@@ -138,6 +142,6 @@ def get_barcodes(header: str) -> tuple[str, str]:
         barcode = pattern_match.group(1)
         umi = pattern_match.group(2)
     else:
-        raise ValueError
+        raise ValueError(header)
 
     return (barcode, umi)
