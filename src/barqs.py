@@ -1,6 +1,6 @@
 import regex
 from collections import defaultdict
-from typing import Mapping, Optional
+from typing import Callable, Hashable, Mapping
 
 import fasta
 import fastq
@@ -8,21 +8,28 @@ import fastq
 
 def extract(
     read: fastq.FASTQRecord,
-    barcode_length: int,
-    umi_length: int,
-    paired_read: Optional[fastq.FASTQRecord] = None,
+    barcode_size: int,
+    umi_size: int,
+) -> tuple[str, str]:
+
+    _, seq, _ = read
+
+    barcode = seq[:barcode_size]
+    umi = seq[barcode_size : barcode_size + umi_size]
+
+    return (barcode, umi)
+
+
+def tag(
+    read: fastq.FASTQRecord,
+    barcode: str,
+    umi: str,
 ) -> fastq.FASTQRecord:
 
-    header, seq, quality_scores = read
+    header, seq, quality_scores - read
 
-    barcode = seq[:barcode_length]
-    umi = seq[barcode_length : barcode_length + umi_length]
-
-    if paired_read:
-        header, seq, quality_scores = paired_read
-    else:
-        seq = seq[barcode_length + umi_length :]
-        quality_scores = quality_scores[barcode_length + umi_length :]
+    seq = seq.lstrip(barcode + umi)
+    quality_scores = quality_scores[len(barcode) + len(umi) :]
 
     header = f"{header} {barcode}:{umi}"
 
@@ -85,7 +92,10 @@ def trim_by_index(
     )
 
 
-def filter_duplicates(reads: fastq.FASTQish) -> fasta.FASTAStream:
+def filter_duplicates(
+    reads: fastq.FASTQish, 
+    key = Callable[[fastq.FASTQRecord], Hashable]
+) -> fasta.FASTAStream:
     observed = set()
     for header, seq, _ in reads:
         key = get_barcodes(header)
@@ -97,7 +107,8 @@ def filter_duplicates(reads: fastq.FASTQish) -> fasta.FASTAStream:
 
 
 def quantify(
-    seqs: fasta.FASTAish, features: fasta.FASTAish
+    seqs: fasta.FASTAish, 
+    features: fasta.FASTAish,
 ) -> dict[str, dict[str, int]]:
     
     umis_by_barcode_feature = defaultdict(lambda: defaultdict(set))
