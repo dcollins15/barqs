@@ -130,7 +130,7 @@ def quantify(
 
 
 def get_barcodes(header: str) -> tuple[str, str]:
-    pattern = r" ([ATGC]+):([ATCG]+)( |$)"
+    pattern = r" ([ATGCN]+):([ATCGN]+)( |$)"
 
     pattern_match = regex.search(pattern, header)
 
