@@ -26,9 +26,9 @@ def tag(
     umi: str,
 ) -> fastq.FASTQRecord:
 
-    header, seq, quality_scores - read
+    header, seq, quality_scores = read
 
-    seq = seq.lstrip(barcode + umi)
+    seq = seq[len(barcode) + len(umi) :]
     quality_scores = quality_scores[len(barcode) + len(umi) :]
 
     header = f"{header} {barcode}:{umi}"
@@ -92,10 +92,7 @@ def trim_by_index(
     )
 
 
-def filter_duplicates(
-    reads: fastq.FASTQish, 
-    key = Callable[[fastq.FASTQRecord], Hashable]
-) -> fasta.FASTAStream:
+def filter_duplicates(reads: fastq.FASTQish) -> fasta.FASTAStream:
     observed = set()
     for header, seq, _ in reads:
         key = get_barcodes(header)
@@ -104,6 +101,8 @@ def filter_duplicates(
             yield (header, seq)
 
             observed.add(key)
+
+    return observed
 
 
 def quantify(
