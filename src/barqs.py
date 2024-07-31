@@ -104,8 +104,6 @@ def filter_duplicates(reads: fastq.FASTQish) -> fasta.FASTAStream:
 
             observed.add(key)
 
-    return observed
-
 
 def quantify(
     seqs: fasta.FASTAish, 
