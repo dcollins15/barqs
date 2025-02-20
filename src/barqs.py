@@ -1,3 +1,5 @@
+from typing import Mapping
+
 from fastq import FASTQRecord
 
 
@@ -62,6 +64,42 @@ def tag(
         quality_scores = quality_scores[len(barcode) + len(umi) :]
 
     header = f"{header} {barcode}:{umi}"
+
+    return (
+        header,
+        seq,
+        quality_scores,
+    )
+
+
+def trim_by_index(
+    read: FASTQRecord, feature_lookup: Mapping[str, str], region: tuple[int, int]
+) -> FASTQRecord:
+    """Trim the FASTQ record to the specified region and append a feature name
+    to the header if there is a sequence match.
+
+    Args:
+        read (FASTQRecord):
+            A tuple containing the FASTQ record (header, sequence, quality scores).
+        feature_lookup (Mapping[str, str]):
+            A dictionary mapping sequences to feature names.
+        region (tuple[int, int]):
+            [blank].
+
+    Returns:
+        FASTQRecord:
+            The updated FASTQ record.
+    """
+
+    header, seq, quality_scores = read
+
+    start, end = region
+    seq = seq[start:end]
+    quality_scores = quality_scores[start:end]
+
+    feature_name = feature_lookup.get(seq)
+    if feature_name:
+        header = f"{header} {feature_name}"
 
     return (
         header,
