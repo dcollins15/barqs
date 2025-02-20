@@ -25,6 +25,15 @@ pytest = "*"
 [tool.pixi.pypi-dependencies]
 barqs = { path = ".", editable = true }
 
+[tool.pixi.tasks]
+isort = "isort src/ tests/"
+black = "black src/ tests/"
+pre-commit = "pre-commit run --all --show-diff-on-failure"
+pyright = "pyright src/ tests/"
+flake8 = "flake8 src/ tests/"
+pytest = "pytest tests/"
+pre-merge = { depends-on = ["isort", "black", "pyright", "flake8"] }
+
 [tool.isort]
 profile = "black"
 float_to_top = "True"

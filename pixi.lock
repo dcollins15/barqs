@@ -212,7 +212,7 @@ packages:
 - pypi: .
   name: barqs
   version: 0.1.0
-  sha256: e1839f402e842ca493f5caad291d8339a0fe15a07199d7d74725078fce2f7743
+  sha256: 9d4fdee99744f200244be7789312f79a25f91b9d6781fb859096b23d111cc01e
   requires_python: '>=3.9'
   editable: true
 - conda: https://conda.anaconda.org/conda-forge/linux-64/black-25.1.0-py312h7900ff3_0.conda
