@@ -1,8 +1,11 @@
-from typing import Mapping
+from typing import Iterator, Mapping
 
 import regex
 
-from fastq import FASTQRecord
+from fastq import FASTQish, FASTQRecord
+
+FASTARecord = tuple[str, str]
+FASTAStream = Iterator[FASTARecord]
 
 
 def extract(
@@ -152,3 +155,53 @@ def trim_by_regex(
         seq,
         quality_scores,
     )
+
+
+def filter_duplicates(reads: FASTQish) -> FASTAStream:
+    """Remove duplicate sequences based on barcode information.
+
+    Args:
+        reads (FASTQish):
+            An iterable of FASTQ records.
+
+    Returns:
+        FASTAStream:
+            An iterator of unique FASTA records.
+    """
+
+    observed = set()
+    for header, seq, _ in reads:
+        key = get_barcodes(header)
+
+        if key not in observed:
+            yield (header, seq)
+
+            observed.add(key)
+
+
+def get_barcodes(header: str) -> tuple[str, str]:
+    """Pull the cell barcode and UMI from the header of a FASTQ record.
+
+    Args:
+        header (str):
+            The header string from a FASTQ record.
+
+    Returns:
+        tuple[str, str]:
+            The extracted barcode and UMI.
+
+    Raises:
+        ValueError: If the header does not contain a valid barcode-UMI pair.
+    """
+
+    pattern = r" ([ATGCN]+):([ATCGN]+)( |$)"
+
+    pattern_match = regex.search(pattern, header)
+
+    if pattern_match:
+        barcode = pattern_match.group(1)
+        umi = pattern_match.group(2)
+    else:
+        raise ValueError(header)
+
+    return (barcode, umi)
