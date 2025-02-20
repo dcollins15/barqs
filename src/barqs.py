@@ -1,5 +1,7 @@
 from typing import Mapping
 
+import regex
+
 from fastq import FASTQRecord
 
 
@@ -100,6 +102,50 @@ def trim_by_index(
     feature_name = feature_lookup.get(seq)
     if feature_name:
         header = f"{header} {feature_name}"
+
+    return (
+        header,
+        seq,
+        quality_scores,
+    )
+
+
+def trim_by_regex(
+    read: FASTQRecord,
+    feature_lookup: Mapping[str, str],
+    tolerance=3,
+) -> FASTQRecord:
+    """Perform a fuzzy match between the FASTQ sequence and [blank]—if there
+    is a match, trim the sequence down to the corresponding region and append
+    the feature name to the header.
+
+    Args:
+        read (FASTQRecord):
+            A tuple containing the FASTQ record (header, sequence, quality scores).
+        feature_lookup (Mapping[str, str]):
+            A dictionary mapping feature sequences to their names.
+        tolerance (int, optional):
+            The maximum number of mismatches allowed. Defaults to 3.
+
+    Returns:
+        FASTQRecord:
+            The updated FASTQ record.
+    """
+    header, seq, quality_scores = read
+
+    match_lookup = {
+        match: feature
+        for feature in feature_lookup.keys()
+        if (match := regex.search(f"(?:{feature}){{s<={tolerance}}}", seq))
+    }
+    if any(match_lookup):
+        match = min(match_lookup.keys(), key=lambda x: x.fuzzy_counts)
+        feature = match_lookup[match]
+        feature_name = feature_lookup[feature]
+
+        header = f"{header} {feature_name}"
+        seq = match.group()
+        quality_scores = quality_scores[match.start() : match.end()]
 
     return (
         header,
