@@ -24,3 +24,7 @@ pytest = "*"
 
 [tool.pixi.pypi-dependencies]
 barqs = { path = ".", editable = true }
+
+[tool.isort]
+profile = "black"
+float_to_top = "True"
