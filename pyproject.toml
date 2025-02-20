@@ -7,3 +7,20 @@ license = {text = "MIT"}
 authors = [{name = "David Collins", email = "dcollins@nygenome.org"}]
 requires-python = ">=3.9"
 dependencies = []
+
+[tool.pixi.project]
+channels = ["conda-forge"]
+platforms = ["win-64", "linux-64", "osx-arm64"]
+version = "0.1.0"
+
+[tool.pixi.dependencies]
+python = "3.12"
+black = "*"
+flake8 = "*"
+isort = "*"
+pre-commit = "*"
+pyright = "*"
+pytest = "*"
+
+[tool.pixi.pypi-dependencies]
+barqs = { path = ".", editable = true }
