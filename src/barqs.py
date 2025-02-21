@@ -1,4 +1,5 @@
-from typing import Iterator, Mapping
+from collections import defaultdict
+from typing import Iterable, Iterator, Mapping
 
 import regex
 
@@ -6,6 +7,8 @@ from fastq import FASTQish, FASTQRecord
 
 FASTARecord = tuple[str, str]
 FASTAStream = Iterator[FASTARecord]
+FASTALike = Iterable[FASTARecord]
+FASTAish = dict[str, str] | Iterable[str] | FASTALike
 
 
 def extract(
@@ -177,6 +180,46 @@ def filter_duplicates(reads: FASTQish) -> FASTAStream:
             yield (header, seq)
 
             observed.add(key)
+
+
+def quantify(
+    seqs: FASTAish,
+    features: FASTAish,
+) -> dict[str, dict[str, int]]:
+    """Count unique UMIs per cell barcode, feature pair.
+
+    Args:
+        seqs (FASTAish):
+            An iterable of FASTA records.
+        features (FASTAish):
+            An iterable of known feature sequences.
+
+    Returns:
+        dict[str, dict[str, int]]:
+            A nested dictionary with barcode-feature pairs and UMI counts.
+    """
+
+    umis_by_barcode_feature = defaultdict(lambda: defaultdict(set))
+    for header, _ in seqs:
+        barcode, umi = get_barcodes(header)
+
+        feature_matches = [
+            feature_name
+            # Checking for the presence of the feature name isn't robust enough
+            # since it will create spurious matches if feature names are
+            # subsets of each other.
+            for feature_name, _ in features
+            if feature_name in header
+        ]
+
+        if feature_matches:
+            assert len(feature_matches) == 1
+            umis_by_barcode_feature[barcode][feature_matches[0]].add(umi)
+
+    return {
+        barcode: {feature: len(umis) for feature, umis in features.items()}
+        for barcode, features in umis_by_barcode_feature.items()
+    }
 
 
 def get_barcodes(header: str) -> tuple[str, str]:
