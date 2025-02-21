@@ -100,11 +100,10 @@ def test_barqs(reads, barcodes, features):
         barqs.tag(read, barcode, umi)
         for read, (barcode, umi) in zip(reads, identifiers)
     )
-    trimmed_reads = (barqs.trim(read, start=15, end=30) for read in reads)
-    observed_features = list(barqs.filter_duplicates(trimmed_reads))
+    trimmed_reads = list(barqs.trim(read, start=15, end=30) for read in reads)
 
     # Quantify feature occurrences using the default mismatch tolerance.
-    counts = barqs.quantify(observed_features, features)
+    counts = barqs.quantify(trimmed_reads, features)
     assert counts[barcode_dict["DAVE"]]["MAGIC"] == 2
     assert counts[barcode_dict["DAVE"]]["WATER"] == 1
     assert "NIGHT" not in counts[barcode_dict["DAVE"]]
@@ -113,7 +112,7 @@ def test_barqs(reads, barcodes, features):
     assert counts[barcode_dict["ELIA"]]["NIGHT"] == 1
 
     # Quantify feature occurrences allowing up to 2 mismatches.
-    counts = barqs.quantify(observed_features, features, tolerance=2)
+    counts = barqs.quantify(trimmed_reads, features, tolerance=2)
     assert counts[barcode_dict["DAVE"]]["MAGIC"] == 1
     assert counts[barcode_dict["DAVE"]]["WATER"] == 1
     assert "NIGHT" not in counts[barcode_dict["DAVE"]]
@@ -122,10 +121,10 @@ def test_barqs(reads, barcodes, features):
     assert counts[barcode_dict["ELIA"]]["NIGHT"] == 1
 
     # Quantify feature occurrences with strict matching (zero mismatches allowed).
-    counts = barqs.quantify(observed_features, features, tolerance=0)
+    counts = barqs.quantify(trimmed_reads, features, tolerance=0)
     assert counts[barcode_dict["DAVE"]]["MAGIC"] == 1
     assert counts[barcode_dict["DAVE"]]["WATER"] == 1
     assert "NIGHT" not in counts[barcode_dict["DAVE"]]
     assert "MAGIC" not in counts[barcode_dict["ELIA"]]
-    assert counts[barcode_dict["ELIA"]]["WATER"] == 1
+    assert counts[barcode_dict["ELIA"]]["WATER"] == 2
     assert "NIGHT" not in counts[barcode_dict["ELIA"]]
