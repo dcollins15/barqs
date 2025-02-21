@@ -1,5 +1,4 @@
 import random
-from functools import partial
 
 import pytest
 
@@ -92,73 +91,41 @@ def reads(
 def test_barqs(reads, barcodes, features):
     """Test that the methods from `barqs` work as expected."""
 
-    # Extract the cell barcode and UMI from each FASTQ sequence.
+    barcode_dict = dict(barcodes)
+
+    # Extract barcode and UMI identifiers from FASTQ sequence and append them
+    # onto the header.
     identifiers = (barqs.extract(read, barcode_size=12, umi_size=8) for read in reads)
-    # Strip the cell barcode and UMI from the FASTQ record and append them to
-    # the header.
-    reads = list(
+    reads = (
         barqs.tag(read, barcode, umi)
         for read, (barcode, umi) in zip(reads, identifiers)
     )
+    trimmed_reads = (barqs.trim(read, start=15, end=30) for read in reads)
+    observed_features = list(barqs.filter_duplicates(trimmed_reads))
 
-    # Create a dictionary mapping feature sequences to their names.
-    feature_lookup = {seq: name for name, seq in features}
-
-    # Use `partial` to setup equivalent calls to `barqs.trim_by_index` and
-    # `barqs.trim_by_regex`.
-    ways_to_trim = [
-        # Specify the region to look for exact sequence matches apriori.
-        partial(barqs.trim_by_index, feature_lookup=feature_lookup, region=(15, 30)),
-        # Require exact sequence matches, search using `regex`.
-        partial(barqs.trim_by_regex, feature_lookup=feature_lookup, tolerance=0),
-    ]
-    for trim in ways_to_trim:
-        # For any reads containing a feature of interest, trim it down to the
-        # matching subsequence and append the feature's name to the header.
-        trimmed_reads = (trim(read) for read in reads)
-        # Keep the first instance of each cell barcode, UMI pair and ignore
-        # any subsequent reads.
-        observed_features = barqs.filter_duplicates(trimmed_reads)
-        # Count the number of UMIs per unique cell barcode, feature pair.
-        counts = barqs.quantify(observed_features, features)
-
-        # Check the expected counts.
-        barcode_dict = dict(barcodes)
-        assert counts[barcode_dict["DAVE"]]["MAGIC"] == 1
-        assert counts[barcode_dict["DAVE"]]["WATER"] == 1
-        assert "NIGHT" not in counts[barcode_dict["DAVE"]]
-        assert "MAGIC" not in counts[barcode_dict["ELIA"]]
-        assert counts[barcode_dict["ELIA"]]["WATER"] == 1
-        assert "NIGHT" not in counts[barcode_dict["ELIA"]]
-
-    # Run `barqs.trim_by_regex` using the default `tolerance=3`
-    trimmed_reads = (
-        barqs.trim_by_regex(read, feature_lookup=feature_lookup) for read in reads
-    )
-    observed_features = barqs.filter_duplicates(trimmed_reads)
+    # Quantify feature occurrences using the default mismatch tolerance.
     counts = barqs.quantify(observed_features, features)
-
-    # Check that the expected values changed.
-    barcode_dict = dict(barcodes)
-    # "MANIC" matched to "MAGIC"
     assert counts[barcode_dict["DAVE"]]["MAGIC"] == 2
-    # "WAGER" matched to "WATER"
+    assert counts[barcode_dict["DAVE"]]["WATER"] == 1
+    assert "NIGHT" not in counts[barcode_dict["DAVE"]]
+    assert "MAGIC" not in counts[barcode_dict["ELIA"]]
     assert counts[barcode_dict["ELIA"]]["WATER"] == 2
-    # LIGHT matched to "LIGHT"
     assert counts[barcode_dict["ELIA"]]["NIGHT"] == 1
 
-    # Run `barqs.trim_by_regex` using `tolerance=2`
-    trimmed_reads = (
-        barqs.trim_by_regex(read, feature_lookup=feature_lookup, tolerance=2)
-        for read in reads
-    )
-    observed_features = barqs.filter_duplicates(trimmed_reads)
-    counts = barqs.quantify(observed_features, features)
-
-    # Check that the expected values changed.
-    barcode_dict = dict(barcodes)
-    # "MANIC" no longer matches "MAGIC"
+    # Quantify feature occurrences allowing up to 2 mismatches.
+    counts = barqs.quantify(observed_features, features, tolerance=2)
     assert counts[barcode_dict["DAVE"]]["MAGIC"] == 1
-    # The other two errors should still be within tolerance.
+    assert counts[barcode_dict["DAVE"]]["WATER"] == 1
+    assert "NIGHT" not in counts[barcode_dict["DAVE"]]
+    assert "MAGIC" not in counts[barcode_dict["ELIA"]]
     assert counts[barcode_dict["ELIA"]]["WATER"] == 2
     assert counts[barcode_dict["ELIA"]]["NIGHT"] == 1
+
+    # Quantify feature occurrences with strict matching (zero mismatches allowed).
+    counts = barqs.quantify(observed_features, features, tolerance=0)
+    assert counts[barcode_dict["DAVE"]]["MAGIC"] == 1
+    assert counts[barcode_dict["DAVE"]]["WATER"] == 1
+    assert "NIGHT" not in counts[barcode_dict["DAVE"]]
+    assert "MAGIC" not in counts[barcode_dict["ELIA"]]
+    assert counts[barcode_dict["ELIA"]]["WATER"] == 1
+    assert "NIGHT" not in counts[barcode_dict["ELIA"]]
