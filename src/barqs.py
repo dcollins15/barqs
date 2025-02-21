@@ -108,38 +108,16 @@ def trim(read: FASTQRecord, start: int, end: int) -> FASTQRecord:
     )
 
 
-def filter_duplicates(reads: FASTQish) -> FASTAStream:
-    """Remove duplicate sequences based on barcode information.
-
-    Args:
-        reads (FASTQish):
-            An iterable of FASTQ records.
-
-    Returns:
-        FASTAStream:
-            An iterator of unique FASTA records.
-    """
-
-    observed = set()
-    for header, seq, _ in reads:
-        key = get_barcodes(header)
-
-        if key not in observed:
-            yield (header, seq)
-
-            observed.add(key)
-
-
 def quantify(
-    seqs: FASTALike,
+    reads: FASTQish,
     features: FASTALike,
     tolerance=3,
 ) -> dict[str, dict[str, int]]:
     """Count unique UMIs per cell barcode, feature pair.
 
     Args:
-        seqs (FASTAish):
-            An iterable of FASTA records.
+        reads (FASTQish):
+            An iterable of FASTQ records.
         features (FASTAish):
             An iterable of known feature sequences.
 
@@ -150,12 +128,15 @@ def quantify(
 
     feature_lookup = {seq: name for name, seq in features}
 
+    observed = set()
     umis_by_barcode_feature = defaultdict(lambda: defaultdict(set))
-    for header, seq in seqs:
+    for header, seq, _ in reads:
+        identifier = get_barcodes(header)
         feature_match = search_features(seq, feature_lookup, tolerance)
 
-        if feature_match:
-            barcode, umi = get_barcodes(header)
+        if feature_match and identifier not in observed:
+            observed.add(identifier)
+            barcode, umi = identifier
             umis_by_barcode_feature[barcode][feature_match].add(umi)
 
     return {
