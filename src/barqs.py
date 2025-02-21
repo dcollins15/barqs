@@ -43,7 +43,7 @@ def tag(
     read: FASTQRecord,
     barcode: str,
     umi: str,
-    trim=True,
+    trim: bool = True,
 ) -> FASTQRecord:
     """Append barcode and UMI to the FASTQ record header and optionally trim
     them from the sequence.
@@ -80,19 +80,16 @@ def tag(
     )
 
 
-def trim_by_index(
-    read: FASTQRecord, feature_lookup: Mapping[str, str], region: tuple[int, int]
-) -> FASTQRecord:
-    """Trim the FASTQ record to the specified region and append a feature name
-    to the header if there is a sequence match.
+def trim(read: FASTQRecord, start: int, end: int) -> FASTQRecord:
+    """Trim the FASTQ record to the specified region.
 
     Args:
         read (FASTQRecord):
             A tuple containing the FASTQ record (header, sequence, quality scores).
-        feature_lookup (Mapping[str, str]):
-            A dictionary mapping sequences to feature names.
-        region (tuple[int, int]):
-            [blank].
+        start (int):
+            The starting index (inclusive) for trimming the FASTQ record.
+        end (int):
+            The ending index (exclusive) for trimming the FASTQ record.
 
     Returns:
         FASTQRecord:
@@ -101,57 +98,8 @@ def trim_by_index(
 
     header, seq, quality_scores = read
 
-    start, end = region
     seq = seq[start:end]
     quality_scores = quality_scores[start:end]
-
-    feature_name = feature_lookup.get(seq)
-    if feature_name:
-        header = f"{header} {feature_name}"
-
-    return (
-        header,
-        seq,
-        quality_scores,
-    )
-
-
-def trim_by_regex(
-    read: FASTQRecord,
-    feature_lookup: Mapping[str, str],
-    tolerance=3,
-) -> FASTQRecord:
-    """Perform a fuzzy match between the FASTQ sequence and [blank]—if there
-    is a match, trim the sequence down to the corresponding region and append
-    the feature name to the header.
-
-    Args:
-        read (FASTQRecord):
-            A tuple containing the FASTQ record (header, sequence, quality scores).
-        feature_lookup (Mapping[str, str]):
-            A dictionary mapping feature sequences to their names.
-        tolerance (int, optional):
-            The maximum number of mismatches allowed. Defaults to 3.
-
-    Returns:
-        FASTQRecord:
-            The updated FASTQ record.
-    """
-    header, seq, quality_scores = read
-
-    match_lookup = {
-        match: feature
-        for feature in feature_lookup.keys()
-        if (match := regex.search(f"(?:{feature}){{s<={tolerance}}}", seq))
-    }
-    if any(match_lookup):
-        match = min(match_lookup.keys(), key=lambda x: x.fuzzy_counts)
-        feature = match_lookup[match]
-        feature_name = feature_lookup[feature]
-
-        header = f"{header} {feature_name}"
-        seq = match.group()
-        quality_scores = quality_scores[match.start() : match.end()]
 
     return (
         header,
@@ -183,8 +131,9 @@ def filter_duplicates(reads: FASTQish) -> FASTAStream:
 
 
 def quantify(
-    seqs: FASTAish,
-    features: FASTAish,
+    seqs: FASTALike,
+    features: FASTALike,
+    tolerance=3,
 ) -> dict[str, dict[str, int]]:
     """Count unique UMIs per cell barcode, feature pair.
 
@@ -199,22 +148,15 @@ def quantify(
             A nested dictionary with barcode-feature pairs and UMI counts.
     """
 
+    feature_lookup = {seq: name for name, seq in features}
+
     umis_by_barcode_feature = defaultdict(lambda: defaultdict(set))
-    for header, _ in seqs:
-        barcode, umi = get_barcodes(header)
+    for header, seq in seqs:
+        feature_match = search_features(seq, feature_lookup, tolerance)
 
-        feature_matches = [
-            feature_name
-            # Checking for the presence of the feature name isn't robust enough
-            # since it will create spurious matches if feature names are
-            # subsets of each other.
-            for feature_name, _ in features
-            if feature_name in header
-        ]
-
-        if feature_matches:
-            assert len(feature_matches) == 1
-            umis_by_barcode_feature[barcode][feature_matches[0]].add(umi)
+        if feature_match:
+            barcode, umi = get_barcodes(header)
+            umis_by_barcode_feature[barcode][feature_match].add(umi)
 
     return {
         barcode: {feature: len(umis) for feature, umis in features.items()}
@@ -248,3 +190,39 @@ def get_barcodes(header: str) -> tuple[str, str]:
         raise ValueError(header)
 
     return (barcode, umi)
+
+
+def search_features(
+    seq: str, feature_lookup: Mapping[str, str], tolerance: int
+) -> str | None:
+    """Find the best matching feature in the sequence, allowing for a
+    specified number of mismatches.
+
+    Args:
+        seq (str):
+            The query sequence to search against.
+        feature_lookup (Mapping[str, str]):
+            A dictionary mapping feature sequences to their corresponding names.
+        tolerance (int, optional):
+            The maximum number of mismatches allowed for a match. Defaults to 3.
+
+    Returns:
+        str | None:
+            The name of the best feature match, or None.
+    """
+
+    feature_name = None
+    if tolerance > 0:
+        match_lookup = {
+            match: feature
+            for feature in feature_lookup.keys()
+            if (match := regex.search(f"(?:{feature}){{s<={tolerance}}}", seq))
+        }
+        if any(match_lookup):
+            match = min(match_lookup.keys(), key=lambda x: x.fuzzy_counts)
+            feature = match_lookup[match]
+            feature_name = feature_lookup[feature]
+    else:
+        feature_name = feature_lookup.get(seq)
+
+    return feature_name
